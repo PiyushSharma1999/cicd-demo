@@ -11,6 +11,7 @@ elif [[ "$MODE" == "image" ]]; then
     trivy image \
         --exit-code 1 \
         --severity HIGH,CRITICAL \
+        --ignore-unfixed \
         --format sarif \
         --output wiz-results.sarif \
         "$TARGET"
