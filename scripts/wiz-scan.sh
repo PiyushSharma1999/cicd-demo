@@ -8,7 +8,7 @@ echo "[wiz] Scanning $MODE: $TARGET"
 if [[ "$MODE" == "dockerfile" ]]; then
     wizcli iac scan --path "$TARGET" --policy "dockerfile-baseline"
 elif [[ "$MODE" == "image" ]]; then
-    wizcli docekr scan --image "$TARGET" \
+    wizcli docker scan --image "$TARGET" \
         --policy "container-critical-and-high" \
         --output sarif > wiz-results.sarif
 else

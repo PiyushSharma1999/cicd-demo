@@ -3,10 +3,10 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'trialqqfbzu.jfrog.io'
-        ARTIFACTORY_URL = 'https://trialqqfbzu.jfrog.io/artifactory/api/docker/test-docker-local'
+        ARTIFACTORY_URL = 'https://trialqqfbzu.jfrog.io/artifactory/test-cicd-demo/'
         SONAR_HOST = 'http://sonarqube:9000'
-        APP_VERSION = '${GIT_COMMIT[0..7]}'
-        IMAGE_TAG = '${IMAGE_NAME}:${APP_VERSION}'
+        APP_VERSION = "${GIT_COMMIT[0..7]}"
+        IMAGE_TAG = "${IMAGE_NAME}:${APP_VERSION}"
     }
 
     triggers {
@@ -16,7 +16,7 @@ pipeline {
     stages {
         stage('Base image validation') {
             steps {
-                sh './scripts/base-image-valdiation.sh python:3.12-slim'
+                sh './scripts/base-image-validate.sh python:3.12-slim'
             }
         }
 
@@ -28,41 +28,41 @@ pipeline {
 
         stage('Docker build') {
             steps {
-                sh '''
-                    docekr build \
+                sh """
+                    docker build \
                         --label 'git.commit=${GIT_COMMIT}' \
                         --label 'build.number=${BUILD_NUMBER}' \
                         -t ${IMAGE_TAG} .
-                '''
+                """
             }
         }
 
-        stage('Wiz iamge scan') {
+        stage('Wiz image scan') {
             steps {
-                sh './scripts/wiz-scan.sh image ${IMAGE_TAG}'
+                sh "./scripts/wiz-scan.sh image ${IMAGE_TAG}"
             }
         }
 
         stage('Cosign sign') {
             steps {
                 withCredentials([string(credentialsId: 'COSIGN_KEY', variable: 'COSIGN_KEY')]) {
-                    sh './scripts/cosign-sign.sh ${IMAGE_TAG}'
+                    sh "./scripts/cosign-sign.sh ${IMAGE_TAG}"
                 }
             }
         }
 
         stage('Push to Artifactory') {
             steps {
-                withCredentials([usernamPassword(
+                withCredentials([usernamePassword(
                     credentialsId: 'ARTIFACTORY_CREDS',
                     usernameVariable: 'ART_USER',
-                    passwordVarible: 'ART_PASS'
+                    passwordVariable: 'ART_PASS'
                 )]) {
                     sh """
                         docker login ${ARTIFACTORY_URL} -u ${ART_USER} -p ${ART_PASS}
                         docker push ${IMAGE_TAG}
                         docker tag ${IMAGE_TAG} ${IMAGE_NAME}:latest
-                        docekr push ${IMAGE_NAME}:latest
+                        docker push ${IMAGE_NAME}:latest
                     """
                 }
             }
@@ -88,7 +88,7 @@ pipeline {
             steps {
                 sh """
                     sleep 5 # wait for container to be ready
-                    APP_URL=https://localhost:5001 \
+                    APP_URL=http://localhost:5001 \
                       python -m pytest app/tests/test_integration.py -v
                 """
             }
@@ -96,7 +96,7 @@ pipeline {
 
         stage('Gate: approve or rollback') {
             steps {
-                scripts {
+                script {
                     def result = input(
                         message: "Deploy ${APP_VERSION} to staging?",
                         ok: 'Approve',

@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "your-artifactory.example.com/demo/cicd-demo"
+        IMAGE_NAME = "https://trialqqfbzu.jfrog.io/artifactory/test-cicd-demo"
         PR_TAG = "${IMAGE_NAME}:pr-${env.CHANGE_ID}"
     }
 
@@ -22,17 +22,17 @@ pipeline {
                     stages {
                         stage('Base image validation') {
                             steps {
-                                sh './scripts/base-iamge-validate.sh python:3.12-slim'
+                                sh './scripts/base-image-validate.sh python:3.12-slim'
                             }
                         }
                         stage('Docker build') {
                             steps {
-                                sh "docker buid -t ${PR_TAG} ."
+                                sh "docker build -t ${PR_TAG} ."
                             }
                         }
                         stage('Wiz Scan') {
                             steps {
-                                sh "./scripts/wiz-scan.sh ${PR_TAG}"
+                                sh "./scripts/wiz-scan.sh image ${PR_TAG}"
                             }
                         }
                     }
@@ -63,29 +63,31 @@ pipeline {
                     }
                 }
             }
-            stage('PR preview deploy') {
-                steps {
-                    scripts {
-                        def port = 5100 + env.CHANGE_ID.toInteger()
+        }
+
+        stage('PR preview deploy') {
+            steps {
+                script {
+                    def port = 5100 + env.CHANGE_ID.toInteger()
+                    sh """
+                        docker stop cicd-demo-pr-${CHANGE_ID} || true
+                        docker rm cicd-demo-pr-${CHANGE_ID} || true
+                        docker run -d \
+                        --name cicd-demo-pr-${CHANGE_ID} \
+                        -p ${port}:5001 \
+                        ${PR_TAG}
+                    """
+                    // Post preview URL as a PR comment
+                    withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GH_TOKEN')]) {
                         sh """
-                            docker stop cicd-demo-pr-${CHANGE_ID} || true
-                            docekr rm cicd-demo-pr-$${CHANGE_ID} || true
-                            docker run -d \
-                            --name cicd-demo-pr-${CHANGE_ID} \ 
-                            -p ${port}:5001s \
-                            ${PR_TAG}
+                            gh pr comment ${CHANGE_ID} \
+                            --body "Preview deployed: http://jenkins-host:${port}/health"
                         """
-                        // Post preview URL as a PR comment
-                        withCredentials([string(credentialsId: 'GITHUB_TOKEN', varialbe: 'GH_TOKEN')]) {
-                            sh """
-                                gh pr comment ${CHANGE_ID} \
-                                --body "Preview deployed: http://jenkins-host:${port}/health"
-                            """
-                        }
                     }
                 }
             }
         }
+        
     }
 
     post {
