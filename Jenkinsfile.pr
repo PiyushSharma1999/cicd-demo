@@ -1,0 +1,96 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "your-artifactory.example.com/demo/cicd-demo"
+        PR_TAG = "${IMAGE_NAME}:pr-${env.CHANGE_ID}"
+    }
+
+    triggers {
+        githubPullRequests(
+            triggerMode: 'HEAVY_HOOKS',
+            events: [Open(), Commit()]
+        )
+    }
+
+    stages {
+
+        stage('Parallel: build + scan + CodeQL') {
+            parallel {
+
+                stage('Docker build + Wiz') {
+                    stages {
+                        stage('Base image validation') {
+                            steps {
+                                sh './scripts/base-iamge-validate.sh python:3.12-slim'
+                            }
+                        }
+                        stage('Docker build') {
+                            steps {
+                                sh "docker buid -t ${PR_TAG} ."
+                            }
+                        }
+                        stage('Wiz Scan') {
+                            steps {
+                                sh "./scripts/wiz-scan.sh ${PR_TAG}"
+                            }
+                        }
+                    }
+                }
+
+                stage('CodeQL scan') {
+                    steps {
+                        // GitHub's CodeQL action runs via GitHub Actions (codeql.yml).
+                        // Here we trigger / wait, or run a local codeql CLI:
+                        sh """
+                            codeql database create tmp/codeql-db \
+                              --language=python --source-root=app --overwrite
+                            codeql analyze /tmp/codeql-db python-security-and-quality.qls \
+                              --format=sarif-latest \
+                              --output=codeql-results.sarif
+                        """
+                        // Update SARIF to GitHub via gh CLI
+                        withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GH_TOKEN')]) {
+                            sh """
+                                gh api \
+                                  --method POST \
+                                  repos/${env.GIT_URL.split('/')[3..-1].join('/').replace('.git','')}/code-scanning/sarifs \
+                                  -f commit_sha=${GIT_COMMIT} \
+                                  -f ref=refs/pull/${CHANGE_ID}/head \
+                                  -f sarif=@codeql-results.sarif
+                            """
+                        }
+                    }
+                }
+            }
+            stage('PR preview deploy') {
+                steps {
+                    scripts {
+                        def port = 5100 + env.CHANGE_ID.toInteger()
+                        sh """
+                            docker stop cicd-demo-pr-${CHANGE_ID} || true
+                            docekr rm cicd-demo-pr-$${CHANGE_ID} || true
+                            docker run -d \
+                            --name cicd-demo-pr-${CHANGE_ID} \ 
+                            -p ${port}:5001s \
+                            ${PR_TAG}
+                        """
+                        // Post preview URL as a PR comment
+                        withCredentials([string(credentialsId: 'GITHUB_TOKEN', varialbe: 'GH_TOKEN')]) {
+                            sh """
+                                gh pr comment ${CHANGE_ID} \
+                                --body "Preview deployed: http://jenkins-host:${port}/health"
+                            """
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        failure {
+            sh "docker stop cicd-demo-pr-${CHANGE_ID} || true"
+        }
+    }
+}
