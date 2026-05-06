@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'trialqqfbzu.jfrog.io'
+        IMAGE_NAME = 'trialqqfbzu.jfrog.io/test-cicd-demo/cicd-demo'
         ARTIFACTORY_URL = 'https://trialqqfbzu.jfrog.io/artifactory/test-cicd-demo/'
         SONAR_HOST = 'http://sonarqube:9000'
         APP_VERSION = "${GIT_COMMIT[0..7]}"
