@@ -30,6 +30,7 @@ pipeline {
             steps {
                 sh """
                     docker build \
+                        --provenance=false \
                         --label 'git.commit=${GIT_COMMIT}' \
                         --label 'build.number=${BUILD_NUMBER}' \
                         -t ${IMAGE_TAG} .
