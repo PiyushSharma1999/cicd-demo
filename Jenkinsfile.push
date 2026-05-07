@@ -51,12 +51,12 @@ pipeline {
                     usernameVariable: 'ART_USER',
                     passwordVariable: 'ART_PASS'
                 )]) {
-                    sh """
-                        docker login trialqqfbzu.jfrog.io -u ${ART_USER} -p ${ART_PASS}
-                        docker push ${IMAGE_TAG}
-                        docker tag ${IMAGE_TAG} ${IMAGE_NAME}:latest
-                        docker push ${IMAGE_NAME}:latest
-                    """
+                    sh '''
+                        docker login trialqqfbzu.jfrog.io -u "$ART_USER" -p "$ART_PASS"
+                        docker push "$IMAGE_TAG"
+                        docker tag "$IMAGE_TAG" "$IMAGE_NAME":latest
+                        docker push "$IMAGE_NAME":latest
+                    '''
                 }
             }
         }
@@ -65,16 +65,17 @@ pipeline {
             steps {
                 withCredentials([
                     string(credentialsId: 'COSIGN_KEY', variable: 'COSIGN_KEY'),
+                    string(credentialsId: 'COSIGN_PASSWORD', variable: 'COSIGN_PASSWORD'),
                     usernamePassword(
                         credentialsId: 'ARTIFACTORY_CREDS',
                         usernameVariable: 'ART_USER',
                         passwordVariable: 'ART_PASS'
                     )
                 ]) {
-                    sh """
-                        cosign login trialqqfbzu.jfrog.io -u ${ART_USER} -p ${ART_PASS}
-                        ./scripts/cosign-sign.sh ${IMAGE_TAG}
-                    """
+                    sh '''
+                        cosign login trialqqfbzu.jfrog.io -u "$ART_USER" -p "$ART_PASS"
+                        ./scripts/cosign-sign.sh "$IMAGE_TAG"
+                    '''
                 }
             }
         }
