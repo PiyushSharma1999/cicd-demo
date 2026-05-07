@@ -43,14 +43,6 @@ pipeline {
             }
         }
 
-        stage('Cosign sign') {
-            steps {
-                withCredentials([string(credentialsId: 'COSIGN_KEY', variable: 'COSIGN_KEY')]) {
-                    sh "./scripts/cosign-sign.sh ${IMAGE_TAG}"
-                }
-            }
-        }
-
         stage('Push to Artifactory') {
             steps {
                 withCredentials([usernamePassword(
@@ -59,10 +51,28 @@ pipeline {
                     passwordVariable: 'ART_PASS'
                 )]) {
                     sh """
-                        docker login ${ARTIFACTORY_URL} -u ${ART_USER} -p ${ART_PASS}
+                        docker login trialqqfbzu.jfrog.io -u ${ART_USER} -p ${ART_PASS}
                         docker push ${IMAGE_TAG}
                         docker tag ${IMAGE_TAG} ${IMAGE_NAME}:latest
                         docker push ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+
+        stage('Cosign sign') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'COSIGN_KEY', variable: 'COSIGN_KEY'),
+                    usernamePassword(
+                        credentialsId: 'ARTIFACTORY_CREDS',
+                        usernameVariable: 'ART_USER',
+                        passwordVariable: 'ART_PASS'
+                    )
+                ]) {
+                    sh """
+                        cosign login trialqqfbzu.jfrog.io -u ${ART_USER} -p ${ART_PASS}
+                        ./scripts/cosign-sign.sh ${IMAGE_TAG}
                     """
                 }
             }
