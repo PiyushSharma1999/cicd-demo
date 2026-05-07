@@ -98,11 +98,15 @@ pipeline {
 
         stage('Integration tests') {
             steps {
-                sh """
-                    sleep 5 # wait for container to be ready
-                    APP_URL=http://localhost:5001 \
-                      python -m pytest app/tests/test_integration.py -v
-                """
+                sh '''
+                    docker stop cicd-demo-dev || true
+                    docker rm cicd-demo-dev || true
+                    docker run -d --name cicd-demo-dev -p 5001:5001 "$IMAGE_TAG"
+                    sleep 5
+                    APP_URL=http://localhost:5001 python3 -m pytest app/tests/test_integration.py -v
+                    docker stop cicd-demo-dev || true
+                    docker rm cicd-demo-dev || true
+                '''
             }
         }
 
